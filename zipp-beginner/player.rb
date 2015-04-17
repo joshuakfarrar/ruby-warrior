@@ -10,9 +10,11 @@ class Player
     when :shoot_them_all
       shoot_enemy
     when :step_forward
-      @warrior.walk!
-    when :flee_and_heal
-      flee_and_heal
+      step_forward
+    when :flee
+      flee
+    when :heal_up
+      heal
     when :rescue_captive
       rescue_captive
     end
@@ -21,17 +23,35 @@ class Player
   end
 
   def get_next_objective
-    @warrior.look.each_with_index do |space, i|
+    @warrior.look.each do |space|
       if space.to_s == 'Captive' 
         return :rescue_captive
         break
       elsif space.to_s == 'Wizard'
         return :shoot_them_all
         break
+      elsif space.to_s == 'Thick Sludge'
+        return :kill_them_all
+        break
+      elsif space.to_s == 'Archer'
+        return :kill_them_all
+        break
       end
     end
 
-    return :step_forward
+    if @warrior.health < 20
+      return :heal_up
+    else
+      return :step_forward
+    end
+  end
+
+  def step_forward
+    if warrior_is_facing_a_wall
+      turn_around
+    else
+      @warrior.walk!
+    end
   end
 
   def clear_room
@@ -66,22 +86,23 @@ class Player
     @warrior.shoot!
   end
 
-  def flee_and_heal
+  def flee
     if @warrior.health < @health
       @warrior.walk!(:backward)
-    else
-      @warrior.rest!
     end
+  end
+
+  def heal
+    @warrior.rest!
 
     if @warrior.health >= 20
-      @state = :kill_them_all
+      @state = :step_forward
     end
   end
 
   def rescue_captive
     if @warrior.feel.captive?
       @warrior.rescue!
-      @state = :shoot_them_all
     else
       @warrior.walk!
     end
