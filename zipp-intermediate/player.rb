@@ -6,9 +6,9 @@ class Player
 
     space = warrior.feel(direction_of_stairs)
 
-    case space
+    case space.to_s
     when 'Sludge', 'Thick Sludge'
-      monster = Monster.from_name(space)
+      monster = Monster.from_space(space)
       attack(monster, direction_of_stairs)
     else
       walk(direction_of_stairs)
