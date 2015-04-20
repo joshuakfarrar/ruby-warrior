@@ -29,10 +29,12 @@ module Actions
   end
 
   class FightToStairs < Actions::Base
-    def act(warrior)
+    def act(warrior, berzerker = false)
       @warrior = warrior
 
-      if @warrior.health <= 9
+      @berzerker = berzerker
+
+      if @warrior.health <= 9 and @berzerker == false
         action = FleeAndHeal.new
         action.act(@warrior)
         return action
@@ -64,11 +66,15 @@ module Actions
       @fled ||= false
 
       if !@fled
-        flee
+        begin
+          flee
+        rescue
+          action = fight_to_stairs
+          return action.act(@warrior, true)
+        end
       else
         if fully_healed?
-          action = FightToStairs.new
-          return action.act(@warrior)
+          return fight_to_stairs
         else
           heal
         end
@@ -83,12 +89,22 @@ module Actions
     end
 
     def flee
+      direction = @warrior.direction_of_stairs
+
+      if @warrior.feel(direction).empty?
+        raise Actions::FleeAndHeal::Nope.new("There's nothing ahead! Proceed.")
+      end      
+
       @warrior.walk!(:right)
       @fled = true
     end
 
     def fully_healed?
       @warrior.health == 20
+    end
+
+    def fight_to_stairs
+      action = FightToStairs.new
     end
 
     def heal
