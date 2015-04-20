@@ -2,15 +2,18 @@ class Player
   def play_turn(warrior)
     @warrior = warrior
 
-    @action ||= Actions::RescueCaptive.new
-
-    next_action = @action.act(warrior)
-
+    @action ||= default_objective
+    next_action = @action.act(@warrior)
     @action = next_action
   end
 
-  def walk(direction)
-    @warrior.walk!(direction)
+  def default_objective
+    units = @warrior.listen
+    if units.map(&:to_s).include? 'Captive'
+      Actions::SearchForCaptives.new
+    else
+      Actions::FightToStairs.new
+    end
   end
 end
 
@@ -21,10 +24,69 @@ module Actions
     end
   end
 
-  class RescueCaptive < Actions::Base
+  class SearchForCaptives < Actions::Base
+    def initialize
+      @directions = [:forward, :backward, :left, :right]
+    end
+
     def act(warrior)
-      warrior.rescue!(:right)
-      Actions::FightToStairs.new
+      @warrior = warrior
+
+      @nearby_captives = search_nearby
+
+      if captives_nearby?
+        rescue_captives(@nearby_captives)
+      else
+        @warrior.walk!(:backward)
+        self
+      end
+    end
+
+    def search_nearby
+      captives = Hash.new
+      @directions.each do |direction|
+        space = @warrior.feel(direction)
+        if space.to_s == 'Captive'
+          captives[direction] = space
+        end
+      end
+      captives
+    end
+
+    def captives_nearby?
+      !@nearby_captives.empty?
+    end
+
+    def rescue_captives(captives)
+      action = Actions::RescueCaptives.new(captives)
+      action.act(@warrior)
+    end
+  end
+
+  class RescueCaptives < Actions::Base
+    def initialize(captives)
+      @captives = captives
+    end
+
+    def act(warrior)
+      @warrior = warrior
+
+      if next_to_captive?
+        direction, captive = @captives.first
+        @captives.delete(direction)
+        rescue_captive(direction)
+        # rescue captive
+        # re-prioritize: search, rescue, or fight to stairs?
+        self
+      end
+    end
+
+    def next_to_captive?
+      !@captives.empty?
+    end
+
+    def rescue_captive(direction)
+      @warrior.rescue!(direction)
     end
   end
 
@@ -68,7 +130,7 @@ module Actions
       if !@fled
         begin
           flee
-        rescue
+        rescue Actions::FleeAndHeal::TheresNothingAhead
           action = fight_to_stairs
           return action.act(@warrior, true)
         end
@@ -92,10 +154,10 @@ module Actions
       direction = @warrior.direction_of_stairs
 
       if @warrior.feel(direction).empty?
-        raise Actions::FleeAndHeal::Nope.new("There's nothing ahead! Proceed.")
+        raise Actions::FleeAndHeal::TheresNothingAhead.new("There's nothing ahead! Proceed.")
       end      
 
-      @warrior.walk!(:right)
+      @warrior.walk!(:backward)
       @fled = true
     end
 
